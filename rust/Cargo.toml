@@ -1,0 +1,22 @@
+[package]
+name = "tessera"
+version = "0.1.0"
+edition = "2021"
+description = "Neural-guided real quantum annealing via tensor networks — bare metal, local, sovereign."
+
+[lib]
+name = "tessera"
+
+[features]
+# Enable to link the C++/CUDA tensor-network engine (cuda/). Off by default so
+# the crate builds and tests without a GPU or CUDA toolkit. When enabling on a
+# machine with the engine built, add the link paths via .cargo/config.toml
+# (see cuda/README.md) — kept out of a build.rs deliberately.
+cuda = []
+
+[dependencies]
+rand = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = true

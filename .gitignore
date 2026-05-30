@@ -1,0 +1,27 @@
+# Rust
+/rust/target/
+**/*.rs.bk
+
+# CUDA / C++ build
+/cuda/build/
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.lib
+*.exp
+*.pdb
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# data / artifacts
+/data/
+/benchmarks/results/
+*.npz
+*.pt
