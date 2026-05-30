@@ -1,5 +1,15 @@
-# Phase 2 — neural guidance + benchmarks.
-torch>=2.2
-torch-geometric>=2.5
+# TESSERA Python pipeline.
+
+# Live webcam demo (tessera_cam.py) — vision pipeline that calls the Rust
+# solvers (classical SA + real quantum annealing) via ctypes.
+# IMPORTANT: must be opencv-CONTRIB (SLIC superpixels live in cv2.ximgproc).
+# If you have plain opencv-python installed, uninstall it first:
+#   pip uninstall -y opencv-python opencv-contrib-python
+#   pip install opencv-contrib-python
+opencv-contrib-python>=4.8
 numpy>=1.24
-matplotlib>=3.7
+
+# Phase 2 — GNN neural guidance (not needed for the camera demo).
+# torch>=2.2
+# torch-geometric>=2.5
+# matplotlib>=3.7

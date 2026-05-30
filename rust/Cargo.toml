@@ -2,10 +2,13 @@
 name = "tessera"
 version = "0.1.0"
 edition = "2021"
-description = "Neural-guided real quantum annealing via tensor networks — bare metal, local, sovereign."
+description = "Neural-guided real quantum annealing via tensor networks, with a live webcam demo — bare metal, local, sovereign."
 
 [lib]
 name = "tessera"
+# cdylib -> the Python vision/ML pipeline loads tessera.dll via ctypes;
+# rlib   -> cargo test + the bench bin use the crate directly.
+crate-type = ["cdylib", "rlib"]
 
 [features]
 # Enable to link the C++/CUDA tensor-network engine (cuda/). Off by default so

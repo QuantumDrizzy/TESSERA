@@ -1,36 +1,46 @@
-# python/ — neural guidance (GNN) + benchmarks
+# python/ — webcam demo + (later) neural guidance
 
-> Phase 2. Python's turf: the AI layer + experiment harness.
+Python owns the vision/ML layer and calls the Rust solvers over a C ABI via
+ctypes. Bare metal: no web, no localhost.
 
-## the GNN (`guide.py`, planned)
+## `tessera_cam.py` — live webcam segmentation (Phase 3, the fused demo)
 
-A **graph neural network** (PyTorch + PyTorch-Geometric) that reads the QUBO/Ising
-graph (node features `h_i`, edge features `J_ij`) and predicts:
+Each camera frame → superpixels = Ising spins; the foreground/background mask is
+the **ground state** of the Ising energy, solved live by either solver:
 
-1. an **annealing schedule** `A(s), B(s)` tailored to the instance, and
-2. a **warm-start** product state (initial spin biases) to seed the MPS.
+- **CLASSICAL** simulated annealing — full resolution (~400 regions).
+- **QUANTUM** annealing — exact state-vector adiabatic evolution (real quantum
+  dynamics). Exact `2ⁿ`, so the frame is coarsened to ≤ ~22 regions for this path.
 
-Trained **amortized** over a distribution of instances (learn once → guide many),
-either unsupervised with the Ising energy as the loss (physics-informed, PI-GNN
-style) or supervised against exact/SA solutions on small instances.
+Keys: `m` toggle SA↔QA · `+/-` quantum region count · `q` quit.
 
-The GNN's outputs feed the Rust schedule driver, which calls the CUDA tensor-network
-engine. The GNN never touches the hot loop — it only *guides* it.
+```bash
+cd ../rust && cargo build --release      # builds tessera.dll (x64 Native Tools prompt)
+pip install -r requirements.txt
+python tessera_cam.py
+```
 
-## benchmark harness (`bench.py`, planned)
+This is the honest core of the demo: switch to quantum mode and you are watching
+real adiabatic quantum dynamics segment your webcam in real time — at the low
+resolution the exact state vector allows. Full resolution is the job of the
+scalable CUDA MPS engine (Phase 1b) and GNN guidance (Phase 2).
 
-Honest, reproducible comparison on identical instances:
+> **OpenCV note:** SLIC superpixels require `opencv-contrib-python` (the
+> `cv2.ximgproc` module). Plain `opencv-python` will raise
+> `ModuleNotFoundError: No module named 'cv2.ximgproc'` — uninstall it and
+> install the contrib build (see `requirements.txt`).
 
-| solver | what |
-|--------|------|
-| `exact`        | brute-force ground state (small n) — truth |
-| `tessera-sa`   | classical simulated annealing (Rust baseline) |
-| `tessera-qa`   | real quantum annealing (CUDA tensor-network engine) |
-| `tessera-qa+gnn` | quantum annealing with GNN-guided schedule/warm-start |
+## `test_ffi.py` — headless FFI smoke test (no camera, no OpenCV)
 
-Reports: solution quality vs exact, time-to-solution, MPS bond dimension `chi`,
-truncation error, and the entanglement-entropy trace along the anneal.
+Validates the ctypes ↔ Rust round-trip for both solvers on a synthetic Ising
+graph. Run after building the core:
 
-## deps
+```bash
+python test_ffi.py        # expects: FFI round-trip: PASS
+```
 
-See `requirements.txt`. The Rust core is built with `cargo`; the CUDA engine with `nvcc`/CMake.
+## the GNN (`guide.py`, Phase 2 — planned)
+
+A graph neural network (PyTorch + PyTorch-Geometric) that reads the QUBO/Ising
+graph and predicts an annealing schedule + warm-start, amortized over an instance
+distribution. It guides the anneal; it never touches the hot loop.

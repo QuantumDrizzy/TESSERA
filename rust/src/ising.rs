@@ -60,17 +60,16 @@ pub fn exact_ground_state(model: &Ising) -> (Vec<i8>, f64) {
     (best, best_e)
 }
 
-/// Classical thermal simulated annealing (Metropolis) — independent baseline.
-/// Geometric temperature schedule from `t0` down to `t_end` over `sweeps`.
-pub fn simulated_annealing(
+/// One simulated-annealing run from a given start state (geometric schedule).
+fn sa_run(
     model: &Ising,
+    mut s: Vec<i8>,
     sweeps: usize,
     t0: f64,
     t_end: f64,
     rng: &mut impl Rng,
 ) -> (Vec<i8>, f64) {
     let adj = model.adjacency();
-    let mut s: Vec<i8> = (0..model.n).map(|_| if rng.gen::<bool>() { 1 } else { -1 }).collect();
     for sweep in 0..sweeps {
         let frac = sweep as f64 / (sweeps.max(2) - 1) as f64;
         let t = t0 * (t_end / t0).powf(frac);
@@ -87,6 +86,31 @@ pub fn simulated_annealing(
     }
     let e = model.energy(&s);
     (s, e)
+}
+
+/// Classical thermal simulated annealing (Metropolis) from a random start —
+/// independent baseline. Geometric temperature schedule from `t0` to `t_end`.
+pub fn simulated_annealing(
+    model: &Ising,
+    sweeps: usize,
+    t0: f64,
+    t_end: f64,
+    rng: &mut impl Rng,
+) -> (Vec<i8>, f64) {
+    let s = (0..model.n).map(|_| if rng.gen::<bool>() { 1 } else { -1 }).collect();
+    sa_run(model, s, sweeps, t0, t_end, rng)
+}
+
+/// Simulated annealing from a given warm-start state (temporal coherence).
+pub fn simulated_annealing_from(
+    model: &Ising,
+    s0: &[i8],
+    sweeps: usize,
+    t0: f64,
+    t_end: f64,
+    rng: &mut impl Rng,
+) -> (Vec<i8>, f64) {
+    sa_run(model, s0.to_vec(), sweeps, t0, t_end, rng)
 }
 
 /// Best-of-`restarts` simulated annealing — the classical baseline *solver*

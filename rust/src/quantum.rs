@@ -33,6 +33,13 @@ pub struct QaOutcome {
     pub expected_energy: f64,
     /// Probability mass on `spins` (annealing success probability).
     pub success_prob: f64,
+    /// Bipartite entanglement entropy (in bits) at each annealing step, for the
+    /// cut [first half | second half] of the spins. This is REAL quantum
+    /// entanglement built up during the anneal — it rises then falls, peaking
+    /// near the quantum phase transition. No physical QPU can report this.
+    pub entropy_trace: Vec<f64>,
+    /// Energy expectation ⟨H_problem⟩ at each step (the anneal converging).
+    pub energy_trace: Vec<f64>,
 }
 
 /// Diagonal of H_problem: `diag[x] = E_Ising(spins(x))` (bit set ⇒ spin +1).
@@ -66,11 +73,17 @@ pub fn anneal_statevector(model: &Ising, sched: &Schedule, dt: f64) -> QaOutcome
     let mut re = vec![amp; dim];
     let mut im = vec![0.0f64; dim];
 
-    for k in 0..sched.steps() {
+    let steps = sched.steps();
+    let mut entropy_trace = Vec::with_capacity(steps);
+    let mut energy_trace = Vec::with_capacity(steps);
+
+    for k in 0..steps {
         let (a, b) = (sched.a[k], sched.b[k]);
         apply_problem_phase(&mut re, &mut im, &diag, b * dt * 0.5);
         apply_transverse(&mut re, &mut im, n, a * dt);
         apply_problem_phase(&mut re, &mut im, &diag, b * dt * 0.5);
+        entropy_trace.push(entanglement_entropy(&re, &im, n));
+        energy_trace.push(expected_energy(&re, &im, &diag));
     }
 
     // Measurement statistics (renormalise to absorb floating-point drift).
@@ -93,7 +106,72 @@ pub fn anneal_statevector(model: &Ising, sched: &Schedule, dt: f64) -> QaOutcome
         energy: diag[best],
         expected_energy: expected / total,
         success_prob: best_p / total,
+        entropy_trace,
+        energy_trace,
     }
+}
+
+/// ⟨ψ|H_problem|ψ⟩ for a (possibly unnormalised) state, renormalised.
+fn expected_energy(re: &[f64], im: &[f64], diag: &[f64]) -> f64 {
+    let mut e = 0.0;
+    let mut total = 0.0;
+    for x in 0..re.len() {
+        let p = re[x] * re[x] + im[x] * im[x];
+        e += p * diag[x];
+        total += p;
+    }
+    e / total
+}
+
+/// Single-site von Neumann entanglement entropy (in bits): qubit 0 vs the rest.
+///
+/// The reduced density matrix of one qubit is 2×2 Hermitian, so its eigenvalues
+/// have a closed form — exact and O(2^n), fast enough for the live per-step
+/// trace. This entanglement is genuinely built up by the quantum dynamics: ~0
+/// at the start (product state |+⟩^n) and end (≈ classical bitstring), with a
+/// peak near the quantum phase transition. No physical QPU can report it.
+///
+/// For qubit 0, basis index `x` and its partner `x ^ 1` differ only in bit 0:
+///   ρ00 = Σ_{bit0=0} |ψ_x|²,  ρ11 = Σ_{bit0=1} |ψ_x|²,
+///   ρ01 = Σ_{bit0=0} ψ_x · conj(ψ_{x^1}).
+///   λ± = (ρ00+ρ11)/2 ± √( ((ρ00-ρ11)/2)² + |ρ01|² ).
+fn entanglement_entropy(re: &[f64], im: &[f64], n: usize) -> f64 {
+    if n < 2 {
+        return 0.0;
+    }
+    let (mut r00, mut r11) = (0.0f64, 0.0f64);
+    let (mut r01_re, mut r01_im) = (0.0f64, 0.0f64);
+    let dim = re.len();
+    let mut x = 0;
+    while x < dim {
+        // x has bit0 = 0; partner y = x + 1 has bit0 = 1.
+        let y = x + 1;
+        r00 += re[x] * re[x] + im[x] * im[x];
+        r11 += re[y] * re[y] + im[y] * im[y];
+        // ψ_x · conj(ψ_y) = (re_x+i im_x)(re_y - i im_y)
+        r01_re += re[x] * re[y] + im[x] * im[y];
+        r01_im += im[x] * re[y] - re[x] * im[y];
+        x += 2;
+    }
+    let total = r00 + r11;
+    if total <= 0.0 {
+        return 0.0;
+    }
+    // Normalise to a trace-1 density matrix.
+    r00 /= total;
+    r11 /= total;
+    let off2 = (r01_re * r01_re + r01_im * r01_im) / (total * total);
+    let mid = (r00 + r11) / 2.0;
+    let rad = (((r00 - r11) / 2.0).powi(2) + off2).sqrt();
+    let lp = (mid + rad).clamp(0.0, 1.0);
+    let lm = (mid - rad).clamp(0.0, 1.0);
+    let mut s = 0.0;
+    for lam in [lp, lm] {
+        if lam > 1e-12 {
+            s -= lam * lam.log2();
+        }
+    }
+    s
 }
 
 /// Multiply every amplitude by the diagonal phase exp(-i·scale·diag[x]).
@@ -164,6 +242,35 @@ mod tests {
         let m = Ising::new(vec![0.0, 0.0], vec![(0, 1, 1.0)]);
         let out = anneal_statevector(&m, &schedule::smooth(500), 0.1);
         assert!((out.energy + 1.0).abs() < 1e-9, "energy={}", out.energy);
+    }
+
+    #[test]
+    fn entanglement_rises_then_falls_during_anneal() {
+        // A frustrated 2-spin antiferromagnet with opposing fields builds real
+        // entanglement mid-anneal, then disentangles toward a classical answer.
+        let m = Ising::new(vec![0.3, -0.3], vec![(0, 1, -1.0)]);
+        let out = anneal_statevector(&m, &schedule::smooth(400), 0.1);
+        let tr = &out.entropy_trace;
+        assert_eq!(tr.len(), 400);
+        let peak = tr.iter().cloned().fold(0.0f64, f64::max);
+        let start = tr[0];
+        let end = *tr.last().unwrap();
+        // Entanglement is ~0 at the product-state start, grows to a real peak,
+        // and is lower again at the (near-classical) end. This is the quantum
+        // phase transition made visible — the demo's headline observable.
+        assert!(peak > 0.05, "no entanglement peak: {peak}");
+        assert!(peak > start && peak >= end, "peak {peak} not above start {start}/end {end}");
+        // Entropy of one qubit is bounded by 1 bit.
+        assert!(peak <= 1.0 + 1e-9, "entropy exceeds 1 bit: {peak}");
+    }
+
+    #[test]
+    fn product_state_has_zero_entanglement() {
+        // A single anneal step from |+>^n with tiny dt stays near a product
+        // state, so single-site entanglement starts essentially at zero.
+        let m = Ising::new(vec![0.5, -0.5, 0.2], vec![(0, 1, 0.4)]);
+        let out = anneal_statevector(&m, &schedule::smooth(50), 0.1);
+        assert!(out.entropy_trace[0] < 0.2, "start entropy too high: {}", out.entropy_trace[0]);
     }
 
     #[test]

@@ -30,8 +30,9 @@ See [`docs/ADR-0001-tessera.md`](docs/ADR-0001-tessera.md) for the full design.
 - 🟡 **Phase 1 (real quantum annealing):**
   - ✅ **exact state-vector oracle** (`quantum.rs`) — real-time adiabatic evolution of the transverse-field Ising Hamiltonian on the full 2ⁿ amplitude vector (symmetric Trotter). Real quantum dynamics for small n; the ground-truth reference the CUDA engine is validated against.
   - ⏳ **scalable CUDA MPS engine** (`cuda/`) — TEBD/TDVP tensor-network evolution on GPU, behind the `cuda` feature.
+- 🟡 **Phase 3 (fused webcam demo):** live segmentation as Ising ground state, solved by **classical SA or real quantum annealing**, toggled live. Python vision pipeline (`python/tessera_cam.py`) calls the Rust solvers via a C ABI (ctypes). FFI round-trip verified (`python/test_ffi.py` → PASS); needs a camera + `opencv-contrib-python` to run live. Quantum path is exact `2ⁿ`, so frames are coarsened to ≤ ~22 regions.
 - ⏳ Phase 2: GNN neural guidance.
-- ⏳ Phase 3: observables (entanglement entropy / gap) + demos.
+- ⏳ Phase 1b / future: CUDA MPS engine for full-resolution quantum; entanglement-entropy observables.
 
 ## build
 
