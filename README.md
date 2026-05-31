@@ -26,19 +26,30 @@ See [`docs/ADR-0001-tessera.md`](docs/ADR-0001-tessera.md) for the full design.
 
 ## status
 
+**All three pillars are implemented and tested — one Ising graph, three views: the GNN learns it, the tensor network represents its quantum state, quantum annealing searches its ground state.**
+
 - ✅ **Phase 0 (Rust foundations):** Ising/QUBO model + QUBO⇄Ising conversion + classical SA baseline + exact ground-state solver + adiabatic schedules + benchmark harness.
-- 🟡 **Phase 1 (real quantum annealing):**
-  - ✅ **exact state-vector oracle** (`quantum.rs`) — real-time adiabatic evolution of the transverse-field Ising Hamiltonian on the full 2ⁿ amplitude vector (symmetric Trotter). Real quantum dynamics for small n; the ground-truth reference the CUDA engine is validated against.
-  - ⏳ **scalable CUDA MPS engine** (`cuda/`) — TEBD/TDVP tensor-network evolution on GPU, behind the `cuda` feature.
-- 🟡 **Phase 3 (fused webcam demo):** live segmentation as Ising ground state, solved by **classical SA or real quantum annealing**, toggled live. Python vision pipeline (`python/tessera_cam.py`) calls the Rust solvers via a C ABI (ctypes). FFI round-trip verified (`python/test_ffi.py` → PASS); needs a camera + `opencv-contrib-python` to run live. Quantum path is exact `2ⁿ`, so frames are coarsened to ≤ ~22 regions.
-- ⏳ Phase 2: GNN neural guidance.
-- ⏳ Phase 1b / future: CUDA MPS engine for full-resolution quantum; entanglement-entropy observables.
+- ✅ **Phase 1a (real quantum annealing):** exact state-vector oracle (`rust/src/quantum.rs`) — real-time adiabatic evolution of the transverse-field Ising Hamiltonian on the full 2ⁿ amplitude vector (symmetric Trotter). Real quantum dynamics for small n; the ground-truth reference the MPS engine is validated against. Reports the live entanglement-entropy trace (the quantum phase transition).
+- ✅ **Phase 1b (tensor networks):** MPS-TEBD quantum-annealing engine in C++ (`cuda/`), breaking the 2ⁿ wall. χ caps representable entanglement (exact at χ ≥ 2^(n/2), reported discarded weight below). **Verified:** trunc ~1e-30 at exact χ; reaches the exact ground state on n≤6 random instances (incl. long-range couplings) and a frustrated 3-spin ring; linalg 5/5 + MPS suite pass. Linked into Rust via `--features cuda`. *Known limit (documented, not hidden): dense graphs at n≥8 stall the fixed schedule — an adiabatic-path issue, not a TN bug.*
+- ✅ **Phase 2 (GNN guidance):** physics-informed graph neural network (`python/gnn_guide.py`, pure-torch). Reads the Ising graph, predicts a per-spin warm-start, trained **unsupervised with the Ising energy as the loss** (no labels, no solver in the loop). **Verified:** relaxed energy +0.01 → -7.31 while training; on unseen instances 0.21 mean gap to optimum vs 0.53 for best-of-10 random, beating random 24/30.
+- ✅ **Phase 3 (fused webcam demo):** live segmentation as Ising ground state, solved by **classical SA or real quantum annealing**, toggled live (`python/tessera_cam.py` → Rust solvers via ctypes). Live entanglement-entropy panel. Needs a camera + `opencv-contrib-python`.
 
 ## build
 
 ```bash
-cd rust && cargo test          # model + baselines + quantum oracle vs exact ground states
-cargo run --bin bench          # exact vs classical SA vs real quantum annealing (state vector)
+# Rust core (oracle + classical baselines + bench)
+cd rust && cargo test
+cargo run --release --bin bench
+
+# C++ MPS tensor-network engine
+cd cuda && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+ctest --test-dir build
+
+# Rust + MPS engine together (fills the QA(mps) column)
+cd rust && cargo run --release --features cuda --bin bench   # copy cuda/build/tessera_qa.dll next to the exe
+
+# GNN guidance (Phase 2)
+cd python && python test_gnn.py        # or: python gnn_guide.py --n 12
 ```
 
-Two quantum backends, one physics: `quantum.rs` (exact 2ⁿ state vector, CPU — the oracle) and `cuda/` (MPS+TDVP, GPU — scalable, validated against the oracle).
+Two quantum backends, one physics: `quantum.rs` (exact 2ⁿ state vector, CPU — the oracle) and `cuda/` (MPS-TEBD — scalable, validated against the oracle). The cuSOLVER GPU layer mounts on the validated CPU MPS core.

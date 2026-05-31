@@ -39,8 +39,20 @@ graph. Run after building the core:
 python test_ffi.py        # expects: FFI round-trip: PASS
 ```
 
-## the GNN (`guide.py`, Phase 2 — planned)
+## `gnn_guide.py` — physics-informed GNN guidance (Phase 2)
 
-A graph neural network (PyTorch + PyTorch-Geometric) that reads the QUBO/Ising
-graph and predicts an annealing schedule + warm-start, amortized over an instance
-distribution. It guides the anneal; it never touches the hot loop.
+A graph neural network (pure PyTorch message passing — no torch-geometric
+dependency) that reads the Ising graph (node feature `h_i`, edge feature `J_ij`)
+and predicts a per-spin warm-start `P(s_i = +1)`. Trained **unsupervised** with
+the relaxed Ising energy itself as the loss (physics-informed GNN, Schuetz et
+al. 2022) — no labels, no solver in the training loop. Amortised: train once on
+a distribution, predict a warm-start for any new instance in one forward pass.
+
+```bash
+python test_gnn.py                 # verifies it learns + beats random (PASS)
+python gnn_guide.py --n 12         # train (CUDA if available) + report gap-to-exact
+```
+
+Verified: relaxed energy +0.01 → -7.31 while training; on unseen instances 0.21
+mean gap to optimum vs 0.53 for best-of-10 random, beating random 24/30. Feed
+`predict_spins()` into the Rust SA / C++ MPS annealer as the seed to refine it.

@@ -9,7 +9,7 @@
 opencv-contrib-python>=4.8
 numpy>=1.24
 
-# Phase 2 — GNN neural guidance (not needed for the camera demo).
-# torch>=2.2
-# torch-geometric>=2.5
-# matplotlib>=3.7
+# Phase 2 — GNN neural guidance (gnn_guide.py). Pure-torch message passing,
+# so torch alone suffices (torch-geometric NOT required). CUDA build recommended.
+torch>=2.2
+# matplotlib>=3.7   # optional, for plotting
