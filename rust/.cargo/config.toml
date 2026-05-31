@@ -1,20 +1,10 @@
-# Linking for the C++/CUDA tensor-network engine (only used with `--features cuda`).
-# Uncomment on a machine where cuda/ has been built into cuda/build, and adjust
-# the CUDA toolkit lib path. Kept here (not in a build.rs) so the default build
-# stays pure-Rust and needs no GPU/toolkit.
+# The C++ MPS tensor-network engine is linked under `--features cuda` via
+# build.rs (which computes an absolute path to cuda/build/tessera_qa.lib).
 #
-# [target.x86_64-pc-windows-msvc]
-# rustflags = [
-#   "-L", "native=../../cuda/build",
-#   "-l", "dylib=tessera_qa",
-#   "-L", "native=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64",
-#   "-l", "dylib=cudart",
-# ]
+# Build the engine first:
+#   cd cuda && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+# Then the crate:
+#   cargo build --release --features cuda
+# At runtime, copy cuda/build/tessera_qa.dll next to the resulting executable.
 #
-# [target.x86_64-unknown-linux-gnu]
-# rustflags = [
-#   "-L", "native=../../cuda/build",
-#   "-l", "dylib=tessera_qa",
-#   "-L", "native=/usr/local/cuda/lib64",
-#   "-l", "dylib=cudart",
-# ]
+# The default build (no `cuda` feature) is pure-Rust and needs no C++ toolkit.
