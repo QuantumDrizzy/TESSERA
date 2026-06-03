@@ -1,5 +1,10 @@
 # TESSERA
 
+[![CI](https://github.com/QuantumDrizzy/TESSERA/actions/workflows/ci.yml/badge.svg)](https://github.com/QuantumDrizzy/TESSERA/actions/workflows/ci.yml)
+![Rust](https://img.shields.io/badge/Rust-systems%20core-orange)
+![C++](https://img.shields.io/badge/C%2B%2B-MPS%20engine-blue)
+![Python](https://img.shields.io/badge/Python-GNN%20guidance-yellow)
+
 **Neural-guided real quantum annealing via tensor networks** — bare metal, local, sovereign. No cloud, no QPU, no web.
 
 TESSERA solves QUBO/Ising optimization by simulating the **real quantum adiabatic process** (transverse-field Ising — tunneling, superposition) with **tensor networks** (MPS + TDVP/TEBD) on a local GPU, while a **GNN learns to guide the anneal**.
