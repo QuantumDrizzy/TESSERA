@@ -1,0 +1,3 @@
+# Language stats should reflect the real implementation (C++/Rust/Python).
+CMakeLists.txt linguist-vendored
+*.cmake        linguist-vendored
