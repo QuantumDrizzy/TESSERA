@@ -97,12 +97,43 @@ N_SP_QUANTUM = 16        # QA is exact 2^n -> must stay small
 QUANTUM_CAP = 22
 W_MOTION, W_CENTER, W_CONTRAST, W_SMOOTH, COLOR_SIGMA = 1.4, 0.5, 0.8, 1.2, 12.0
 
+# Superpixel backend: prefer SLIC from opencv-contrib (cv2.ximgproc) for quality;
+# fall back to a dependency-free regular grid so the demo runs with PLAIN
+# opencv-python on any platform — e.g. a Raspberry Pi, where the contrib wheel
+# may not ship ximgproc. The Ising pipeline is segmenter-agnostic: it only needs
+# a labels map + a count, so either backend feeds it identically.
+_SP_BACKEND = None  # resolved and announced once, on first frame
+
+
+def _superpixels_grid(shape, n_target):
+    """Pure-numpy fallback: tile the frame into ~n_target rectangular cells."""
+    h, w = shape[:2]
+    cols = max(1, int(round(np.sqrt(max(n_target, 1) * w / h))))
+    rows = max(1, int(round(max(n_target, 1) / cols)))
+    ys = (np.arange(h) * rows // h)[:, None]
+    xs = (np.arange(w) * cols // w)[None, :]
+    labels = (ys * cols + xs).astype(np.int32)
+    return np.ascontiguousarray(labels), rows * cols
+
+
 def superpixels(bgr, n_target):
-    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
-    region = int(np.sqrt(bgr.shape[0] * bgr.shape[1] / max(n_target, 1)))
-    slic = cv2.ximgproc.createSuperpixelSLIC(lab, cv2.ximgproc.SLICO, max(region, 8))
-    slic.iterate(8)
-    return slic.getLabels(), slic.getNumberOfSuperpixels()
+    global _SP_BACKEND
+    try:
+        lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
+        region = int(np.sqrt(bgr.shape[0] * bgr.shape[1] / max(n_target, 1)))
+        slic = cv2.ximgproc.createSuperpixelSLIC(lab, cv2.ximgproc.SLICO, max(region, 8))
+        slic.iterate(8)
+        if _SP_BACKEND is None:
+            _SP_BACKEND = "slic"
+            print("[TESSERA] superpixels: SLIC (opencv-contrib)")
+        return slic.getLabels(), slic.getNumberOfSuperpixels()
+    except AttributeError:
+        # ximgproc not present (plain opencv-python) -> dependency-free grid.
+        if _SP_BACKEND is None:
+            _SP_BACKEND = "grid"
+            print("[TESSERA] superpixels: grid fallback "
+                  "(install opencv-contrib-python for SLIC quality)")
+        return _superpixels_grid(bgr.shape, n_target)
 
 def adjacency(labels):
     a = np.stack([labels[:, :-1].ravel(), labels[:, 1:].ravel()], 1)

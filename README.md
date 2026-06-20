@@ -39,6 +39,20 @@ See [`docs/ADR-0001-tessera.md`](docs/ADR-0001-tessera.md) for the full design.
 - ✅ **Phase 2 (GNN guidance):** physics-informed graph neural network (`python/gnn_guide.py`, pure-torch). Reads the Ising graph, predicts a per-spin warm-start, trained **unsupervised with the Ising energy as the loss** (no labels, no solver in the loop). **Verified:** relaxed energy +0.01 → -7.31 while training; on unseen instances 0.21 mean gap to optimum vs 0.53 for best-of-10 random, beating random 24/30.
 - ✅ **Phase 3 (fused webcam demo):** live segmentation as Ising ground state, solved by **classical SA or real quantum annealing**, toggled live (`python/tessera_cam.py` → Rust solvers via ctypes). Live entanglement-entropy panel. Needs a camera + `opencv-contrib-python`.
 
+## quick start — push & play (incl. Raspberry Pi)
+
+```bash
+git clone https://github.com/QuantumDrizzy/TESSERA && cd TESSERA
+pip install -r python/requirements-demo.txt    # plain opencv-python + numpy
+sh run.sh                                       # builds the Rust core, runs the webcam demo
+```
+
+The Rust solver core is **pure Rust** (no CUDA/GPU), so it builds anywhere — incl.
+`aarch64` (Raspberry Pi). The webcam demo needs only **plain `opencv-python`**: if
+`opencv-contrib` (SLIC) is missing, it auto-falls-back to a dependency-free grid
+segmenter (the Ising pipeline is segmenter-agnostic). The C++/CUDA MPS engine is a
+separate, off-by-default path — the live demo does not need it.
+
 ## build
 
 ```bash

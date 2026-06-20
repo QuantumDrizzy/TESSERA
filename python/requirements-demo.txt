@@ -1,0 +1,11 @@
+# TESSERA webcam demo — minimal deps for "push & play".
+#
+# Plain opencv-python is enough: the demo auto-falls-back to a dependency-free
+# grid segmenter when opencv-CONTRIB (cv2.ximgproc SLIC) is absent — so it runs
+# on a Raspberry Pi without the fragile contrib build. Install
+# opencv-contrib-python instead if you want SLIC superpixel quality.
+#
+# torch is NOT needed here — it's only for the separate GNN guidance
+# (gnn_guide.py); see requirements.txt for the full stack.
+opencv-python>=4.8
+numpy>=1.24
